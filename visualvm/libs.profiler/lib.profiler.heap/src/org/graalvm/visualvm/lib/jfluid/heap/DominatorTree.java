@@ -53,7 +53,6 @@ class DominatorTree {
     private LongBuffer revertedMultipleParents;
     private LongBuffer currentMultipleParents;
     private LongHashMap map;
-    private LongSet dirtySet;
     private int dirtySetSameSize;
     private Map<ClassDump,Boolean> canContainItself;
     private Map<Long,Long> nearestGCRootCache = new NearestGCRootCache<>(400000);
@@ -65,7 +64,6 @@ class DominatorTree {
         multipleParents = multiParents;
         currentMultipleParents = multipleParents;
         map = new LongHashMap(multiParents.getSize());
-        dirtySet = new LongSet();
         try {
             revertedMultipleParents = multiParents.revertBuffer();
         } catch (IOException ex) {
@@ -79,22 +77,30 @@ class DominatorTree {
         boolean changed = true;
         boolean igonoreDirty;
         try {
+            LongSet dirtySet = new LongSet();
+            LongSet newDirtySet = new LongSet();
+
             do {
                 currentMultipleParents.startReading();
                 igonoreDirty = !changed;
-                changed = computeOneLevel(igonoreDirty);
+                changed = computeOneLevel(igonoreDirty, dirtySet, newDirtySet);
+
+                // Swap dirty sets
+                LongSet oldDirtySet = dirtySet;
+                dirtySet = newDirtySet;
+                oldDirtySet.clear();
+                newDirtySet = oldDirtySet;
+
                 switchParents();
             } while (changed || !igonoreDirty);
         } catch (IOException ex) {
             ex.printStackTrace();
         }
         deleteBuffers();
-        dirtySet = new LongSet();
     }
     
-    private boolean computeOneLevel(boolean ignoreDirty) throws IOException {
+    private boolean computeOneLevel(boolean ignoreDirty, LongSet dirtySet, LongSet newDirtySet) throws IOException {
         boolean changed = false;
-        LongSet newDirtySet = new LongSet(map.size()/10);
         List<Long> additionalIds = new ArrayList<>();
         int additionalIndex = 0;
         // debug 
@@ -164,7 +170,6 @@ class DominatorTree {
         } else {
             dirtySetSameSize++;
         }
-        dirtySet = newDirtySet;
 //System.out.println("Processed: "+processedId);
 //System.out.println("Changed:   "+changedId);
 //System.out.println("-------------------");

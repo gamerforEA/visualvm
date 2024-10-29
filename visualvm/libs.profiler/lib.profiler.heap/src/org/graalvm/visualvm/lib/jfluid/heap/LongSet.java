@@ -379,6 +379,9 @@ class LongSet
      * The map will be empty after this call returns.
      */
     void clear() {
+        if (size == 0)
+            return;
+
         modCount++;
         long[] tab = table;
         Arrays.fill(tab,0);
