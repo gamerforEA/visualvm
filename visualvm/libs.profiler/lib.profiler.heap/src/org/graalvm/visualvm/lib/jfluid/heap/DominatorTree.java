@@ -220,30 +220,23 @@ class DominatorTree {
     }
     
     boolean hasInstanceInChain(int tag, Instance i) {
-        ClassDump javaClass;
-        long idom;
-        long instanceId;
-        
         if (tag == HprofHeap.PRIMITIVE_ARRAY_DUMP) {
             return false;
-        }        
-        javaClass = (ClassDump) i.getJavaClass();
-        if (canContainItself == null) {
-            canContainItself = new HashMap<>(heap.getAllClasses().size()/2);
         }
-        if (tag == HprofHeap.INSTANCE_DUMP) {
-            Boolean canContain = canContainItself.get(javaClass);
 
-            if (canContain == null) {
-                canContain = Boolean.valueOf(javaClass.canContainItself());
-                canContainItself.put(javaClass,canContain);
+        ClassDump javaClass = (ClassDump) i.getJavaClass();
+        if (tag == HprofHeap.INSTANCE_DUMP) {
+            if (canContainItself == null) {
+                canContainItself = new HashMap<>(heap.getAllClasses().size()/2);
             }
-            if (!canContain.booleanValue()) {
+
+            boolean canContain = canContainItself.computeIfAbsent(javaClass, ClassDump::canContainItself);
+            if (!canContain) {
                 return false;
             }
         }
-        instanceId = i.getInstanceId();
-        idom = getIdomId(instanceId);
+        long instanceId = i.getInstanceId();
+        long idom = getIdomId(instanceId);
         for (;idom!=0;idom=getIdomId(idom)) {
             Instance ip = heap.getInstanceByID(idom);
             JavaClass cls = ip.getJavaClass();
