@@ -467,10 +467,10 @@ abstract class AbstractLongMap {
 
     private static class LongMemoryMappedData extends AbstractData {
 
-        private static int BUFFER_SIZE_BITS = 30;
-        private static long BUFFER_SIZE = 1L << BUFFER_SIZE_BITS;
-        private static int BUFFER_SIZE_MASK = (int) ((BUFFER_SIZE) - 1);
-        private static int BUFFER_EXT = 32 * 1024;
+        private static final int BUFFER_SIZE_BITS = 30;
+        private static final long BUFFER_SIZE = 1L << BUFFER_SIZE_BITS;
+        private static final int BUFFER_SIZE_MASK = (int) ((BUFFER_SIZE) - 1);
+        private static final int BUFFER_EXT = 32 * 1024;
 
         //~ Instance fields ----------------------------------------------------------------------------------------------------------
 
@@ -513,11 +513,11 @@ abstract class AbstractLongMap {
             dumpBuffer[getBufferIndex(index)].putLong(getBufferOffset(index),data);
         }
 
-        private int getBufferIndex(long index) {
+        private static int getBufferIndex(long index) {
             return (int) (index >> BUFFER_SIZE_BITS);
         }
 
-        private int getBufferOffset(long index) {
+        private static int getBufferOffset(long index) {
             return (int) (index & BUFFER_SIZE_MASK);
         }
 
