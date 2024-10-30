@@ -28,7 +28,6 @@ package org.graalvm.visualvm.lib.jfluid.heap;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -83,10 +82,12 @@ class DominatorTree {
             LongSet leftIdoms = new LongSet(200);
             LongSet rightIdoms = new LongSet(200);
 
+            LongList additionalIds = new LongList();
+
             do {
                 currentMultipleParents.startReading();
                 igonoreDirty = !changed;
-                changed = computeOneLevel(igonoreDirty, dirtySet, newDirtySet, leftIdoms, rightIdoms);
+                changed = computeOneLevel(igonoreDirty, dirtySet, newDirtySet, leftIdoms, rightIdoms, additionalIds);
 
                 // Swap dirty sets
                 LongSet oldDirtySet = dirtySet;
@@ -102,9 +103,9 @@ class DominatorTree {
         deleteBuffers();
     }
     
-    private boolean computeOneLevel(boolean ignoreDirty, LongSet dirtySet, LongSet newDirtySet, LongSet leftIdoms, LongSet rightIdoms) throws IOException {
+    private boolean computeOneLevel(boolean ignoreDirty, LongSet dirtySet, LongSet newDirtySet, LongSet leftIdoms, LongSet rightIdoms, LongList additionalIds) throws IOException {
         boolean changed = false;
-        List<Long> additionalIds = new ArrayList<>();
+        additionalIds.clear();
         int additionalIndex = 0;
         // debug 
 //        long processedId = 0;
@@ -126,7 +127,7 @@ class DominatorTree {
                     }
                     break;
                 }
-                instanceId = additionalIds.get(additionalIndex++).longValue();
+                instanceId = additionalIds.uncheckedGet(additionalIndex++);
             }
             long oldIdom = map.get(instanceId);
 //index++;
@@ -181,7 +182,7 @@ class DominatorTree {
         return changed;
     }
         
-    private void updateAdditionalIds(final long instanceId, final List<Long> additionalIds) {
+    private void updateAdditionalIds(final long instanceId, final LongList additionalIds) {
         Instance i = heap.getInstanceByID(instanceId);
 //System.out.println("Inspecting "+printInstance(instanceId));
         if (i != null) {
@@ -190,10 +191,9 @@ class DominatorTree {
                     Instance val = ((ObjectFieldValue)v).getInstance();
                     if (val != null) {
                         long idp = val.getInstanceId();
-                        Long idO = new Long(idp);
                         long idomO = map.get(idp);
                         if (idomO > 0) {
-                            additionalIds.add(idO);
+                            additionalIds.add(idp);
 //System.out.println("  Adding "+printInstance(idO));
                         }
                     }
