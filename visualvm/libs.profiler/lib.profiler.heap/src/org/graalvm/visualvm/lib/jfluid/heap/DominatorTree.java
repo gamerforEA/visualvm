@@ -251,16 +251,14 @@ class DominatorTree {
         return false;
     }
 
-    private Long getNearestGCRootPointer(Long instanceIdLong) {
-        LongMap.Entry entry;
+    private long getNearestGCRootPointer(Long instanceIdLong) {
         Long nearestGCLong = nearestGCRootCache.get(instanceIdLong);
-        Long nearestGC;
         if (nearestGCLong != null) {
             return nearestGCLong;
         }
-        entry = heap.idToOffsetMap.get(instanceIdLong.longValue());
-        nearestGC = Long.valueOf(entry.getNearestGCRootPointer());
-        nearestGCRootCache.put(instanceIdLong,nearestGC);
+        LongMap.Entry entry = heap.idToOffsetMap.get(instanceIdLong.longValue());
+        long nearestGC = entry.getNearestGCRootPointer();
+        nearestGCRootCache.put(instanceIdLong,Long.valueOf(nearestGC));
         return nearestGC;
     }
     
