@@ -80,10 +80,13 @@ class DominatorTree {
             LongSet dirtySet = new LongSet();
             LongSet newDirtySet = new LongSet();
 
+            LongSet leftIdoms = new LongSet(200);
+            LongSet rightIdoms = new LongSet(200);
+
             do {
                 currentMultipleParents.startReading();
                 igonoreDirty = !changed;
-                changed = computeOneLevel(igonoreDirty, dirtySet, newDirtySet);
+                changed = computeOneLevel(igonoreDirty, dirtySet, newDirtySet, leftIdoms, rightIdoms);
 
                 // Swap dirty sets
                 LongSet oldDirtySet = dirtySet;
@@ -99,7 +102,7 @@ class DominatorTree {
         deleteBuffers();
     }
     
-    private boolean computeOneLevel(boolean ignoreDirty, LongSet dirtySet, LongSet newDirtySet) throws IOException {
+    private boolean computeOneLevel(boolean ignoreDirty, LongSet dirtySet, LongSet newDirtySet, LongSet leftIdoms, LongSet rightIdoms) throws IOException {
         boolean changed = false;
         List<Long> additionalIds = new ArrayList<>();
         int additionalIndex = 0;
@@ -136,7 +139,7 @@ class DominatorTree {
                 
                 while(refIt.hasNext() && newIdomId != 0) {
                     long refIdObj = refIt.next();
-                    newIdomId = intersect(newIdomId, refIdObj);
+                    newIdomId = intersect(newIdomId, refIdObj, leftIdoms, rightIdoms);
                 }
                 if (oldIdom == -1) {
 //addedBynewDirtySet.add(newDirtySet.contains(instanceId) && !dirtySet.contains(instanceId));
@@ -270,15 +273,15 @@ class DominatorTree {
         return getNearestGCRootPointer(instanceIdLong);
     }
     
-    private long intersect(long idomId, long refId) {
+    private long intersect(long idomId, long refId, LongSet leftIdoms, LongSet rightIdoms) {
         if (idomId == refId) {
             return idomId;
         }
         if (idomId == 0 || refId == 0) {
             return 0;
         }
-        LongSet leftIdoms = new LongSet(200);
-        LongSet rightIdoms = new LongSet(200);        
+        leftIdoms.clear();
+        rightIdoms.clear();
         long leftIdom = idomId;
         long rightIdom = refId;
 
