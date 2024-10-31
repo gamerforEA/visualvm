@@ -34,7 +34,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 
 
 /**
@@ -174,12 +175,44 @@ class LongBuffer {
             }
         } else {
             if (writeStream != null) writeStream.flush();
-            try (RandomAccessFile raf = new RandomAccessFile(backingFile,"r")) {
-                long offset = raf.length();
-                while(offset > 0) {
-                    offset-=8;
-                    raf.seek(offset);
-                    reverted.writeLong(raf.readLong());
+
+            transfer:
+            try (FileChannel channel = FileChannel.open(backingFile.toPath())) {
+                long size = channel.size();
+                if (size == 0) {
+                    break transfer;
+                }
+
+                if (size % Long.BYTES != 0) {
+                    throw new IOException(backingFile + " size (" + size + ") is not divisible by " + Long.BYTES);
+                }
+
+                ByteBuffer buf = ByteBuffer.allocateDirect((int) Math.min(size, (long) buffer.length * Long.BYTES));
+
+                for (long to = size, from = to - buf.capacity(); from >= 0;) {
+                    channel.position(from);
+                    buf.clear().limit((int) (to - from));
+
+                    while (buf.hasRemaining()) {
+                        int n = channel.read(buf);
+                        if (n == -1) {
+                            throw new EOFException("Unexpected end of file " + backingFile);
+                        }
+                    }
+
+                    for (int bufOffset = buf.capacity() - Long.BYTES; bufOffset >= 0; bufOffset -= Long.BYTES) {
+                        reverted.writeLong(buf.getLong(bufOffset));
+                    }
+
+                    to = from;
+
+                    if (from >= buf.capacity()) {
+                        from -= buf.capacity();
+                    } else if (from > 0) {
+                        from = 0;
+                    } else {
+                        break;
+                    }
                 }
             }
         }
