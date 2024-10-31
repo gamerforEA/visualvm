@@ -200,7 +200,7 @@ class LongBuffer {
                         }
                     }
 
-                    for (int bufOffset = buf.capacity() - Long.BYTES; bufOffset >= 0; bufOffset -= Long.BYTES) {
+                    for (int bufOffset = buf.limit() - Long.BYTES; bufOffset >= 0; bufOffset -= Long.BYTES) {
                         reverted.writeLong(buf.getLong(bufOffset));
                     }
 
