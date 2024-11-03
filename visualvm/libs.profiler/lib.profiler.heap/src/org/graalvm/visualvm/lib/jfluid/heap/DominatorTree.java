@@ -28,11 +28,7 @@ package org.graalvm.visualvm.lib.jfluid.heap;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
 /**
  *
@@ -76,12 +72,11 @@ class DominatorTree {
         boolean changed = true;
         boolean igonoreDirty;
         try {
-            // TODO BitSet
-            IntSet dirtySet = new IntSet();
-            IntSet newDirtySet = new IntSet();
+            BitSet dirtySet = new BitSet();
+            BitSet newDirtySet = new BitSet();
 
-            IntSet leftIdoms = new IntSet(200);
-            IntSet rightIdoms = new IntSet(200);
+            BitSet leftIdoms = new BitSet(200);
+            BitSet rightIdoms = new BitSet(200);
 
             IntList additionalIndexes = new IntList();
 
@@ -91,7 +86,7 @@ class DominatorTree {
                 changed = computeOneLevel(igonoreDirty, dirtySet, newDirtySet, leftIdoms, rightIdoms, additionalIndexes);
 
                 // Swap dirty sets
-                IntSet oldDirtySet = dirtySet;
+                BitSet oldDirtySet = dirtySet;
                 dirtySet = newDirtySet;
                 oldDirtySet.clear();
                 newDirtySet = oldDirtySet;
@@ -104,7 +99,7 @@ class DominatorTree {
         deleteBuffers();
     }
     
-    private boolean computeOneLevel(boolean ignoreDirty, IntSet dirtySet, IntSet newDirtySet, IntSet leftIdoms, IntSet rightIdoms, IntList additionalIndexes) throws IOException {
+    private boolean computeOneLevel(boolean ignoreDirty, BitSet dirtySet, BitSet newDirtySet, BitSet leftIdoms, BitSet rightIdoms, IntList additionalIndexes) throws IOException {
         boolean changed = false;
         additionalIndexes.clear();
         int additionalIndex = 0;
@@ -132,7 +127,7 @@ class DominatorTree {
             }
             int oldIdom = map.get(instanceIndex);
 //index++;
-            if (oldIdom == -1 || (oldIdom > 0 && (ignoreDirty || dirtySet.contains(oldIdom) || dirtySet.contains(instanceIndex)))) {
+            if (oldIdom == -1 || (oldIdom > 0 && (ignoreDirty || dirtySet.get(oldIdom) || dirtySet.get(instanceIndex)))) {
 //processedId++;
                 LongMap.Entry entry = heap.idToOffsetMap.getByIndex(instanceIndex);
                 IntIterator refIt = entry.getReferences();
@@ -146,7 +141,7 @@ class DominatorTree {
                 if (oldIdom == -1) {
 //addedBynewDirtySet.add(newDirtySet.contains(instanceId) && !dirtySet.contains(instanceId));
                     map.put(instanceIndex, newIdomIndex);
-                    if (newIdomIndex != 0) newDirtySet.add(newIdomIndex);
+                    if (newIdomIndex != 0) newDirtySet.set(newIdomIndex);
                     changed = true;
 //changedId++;
 //changedIds.add(instanceId);
@@ -155,8 +150,8 @@ class DominatorTree {
 //newDomIds.add(newIdomIndex);
                 } else if (oldIdom != newIdomIndex) {
 //addedBynewDirtySet.add((newDirtySet.contains(oldIdom) || newDirtySet.contains(instanceId)) && !(dirtySet.contains(oldIdom) || dirtySet.contains(instanceId)));
-                    newDirtySet.add(oldIdom);
-                    if (newIdomIndex != 0) newDirtySet.add(newIdomIndex);
+                    newDirtySet.set(oldIdom);
+                    if (newIdomIndex != 0) newDirtySet.set(newIdomIndex);
                     map.put(instanceIndex,newIdomIndex);
                     if (dirtySet.size() < ADDITIONAL_IDS_THRESHOLD || dirtySetSameSize >= ADDITIONAL_IDS_THRESHOLD_DIRTYSET_SAME_SIZE) {
                         updateAdditionalIds(instanceIndex, additionalIndexes);
@@ -272,7 +267,7 @@ class DominatorTree {
         return getNearestGCRootPointer(instanceIndex);
     }
     
-    private int intersect(int idomIndex, int refIndex, IntSet leftIdoms, IntSet rightIdoms) {
+    private int intersect(int idomIndex, int refIndex, BitSet leftIdoms, BitSet rightIdoms) {
         if (idomIndex == refIndex) {
             return idomIndex;
         }
@@ -285,26 +280,26 @@ class DominatorTree {
         int rightIdom = refIndex;
 
         
-        leftIdoms.add(leftIdom);
-        rightIdoms.add(rightIdom);
+        leftIdoms.set(leftIdom);
+        rightIdoms.set(rightIdom);
         while(true) {
             if (rightIdom == 0 && leftIdom == 0) return 0;
             if (leftIdom != 0) {
                 leftIdom = getIdomIndex(leftIdom);
                 if (leftIdom != 0) {
-                    if (rightIdoms.contains(leftIdom)) {
+                    if (rightIdoms.get(leftIdom)) {
                         return leftIdom;
                     }
-                    leftIdoms.add(leftIdom);
+                    leftIdoms.set(leftIdom);
                 }
             }
             if (rightIdom != 0) {
                 rightIdom = getIdomIndex(rightIdom);
                 if (rightIdom != 0) {
-                    if (leftIdoms.contains(rightIdom)) {
+                    if (leftIdoms.get(rightIdom)) {
                         return rightIdom;
                     }
-                    rightIdoms.add(rightIdom);
+                    rightIdoms.set(rightIdom);
                 }
             }
         }
