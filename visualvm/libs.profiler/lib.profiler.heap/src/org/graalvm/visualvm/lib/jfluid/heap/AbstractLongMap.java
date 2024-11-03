@@ -107,6 +107,7 @@ abstract class AbstractLongMap {
         while (true) {
             long mapKey = getID(index);
             if (mapKey == 0L) {
+                putID(index, key);
                 return createEntryOnPut(key,index,value);
             } else if (mapKey == key) {
                 return createEntry(index);
