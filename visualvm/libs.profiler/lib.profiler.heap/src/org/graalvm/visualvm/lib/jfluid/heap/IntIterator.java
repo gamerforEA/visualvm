@@ -30,19 +30,19 @@ import java.util.NoSuchElementException;
  *
  * @author Tomas Hurka
  */
-abstract class LongIterator {
+abstract class IntIterator {
 
-    static final LongIterator EMPTY_ITERATOR = new Empty();
+    static final IntIterator EMPTY_ITERATOR = new Empty();
 
-    static LongIterator singleton(long i) {
+    static IntIterator singleton(int i) {
         return new Singleton(i);
     }
 
     abstract boolean hasNext();
 
-    abstract long next();
+    abstract int next();
 
-    private static class Empty extends LongIterator {
+    private static class Empty extends IntIterator {
 
         @Override
         boolean hasNext() {
@@ -50,17 +50,17 @@ abstract class LongIterator {
         }
 
         @Override
-        long next() {
+        int next() {
             throw new NoSuchElementException();
         }
     }
 
-    private static class Singleton extends LongIterator {
+    private static class Singleton extends IntIterator {
 
-        private final long item;
+        private final int item;
         private boolean skipped;
 
-        private Singleton(long i) {
+        private Singleton(int i) {
             item = i;
         }
 
@@ -70,7 +70,7 @@ abstract class LongIterator {
         }
 
         @Override
-        long next() {
+        int next() {
             if (hasNext()) {
                 skipped = true;
                 return item;

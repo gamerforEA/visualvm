@@ -186,6 +186,7 @@ public class ClassHierarchyPlugin extends HeapViewPlugin {
         @Override public int getInstancesCount()                    { throw new UnsupportedOperationException("Not supported."); } // NOI18N
         @Override public long getRetainedSizeByClass()              { throw new UnsupportedOperationException("Not supported."); } // NOI18N
         @Override public long getJavaClassId()                      { throw new UnsupportedOperationException("Not supported."); } // NOI18N
+        @Override public int getJavaClassIndex()                    { throw new UnsupportedOperationException("Not supported."); } // NOI18N
         @Override public String getName()                           { throw new UnsupportedOperationException("Not supported."); } // NOI18N
         @Override public List getStaticFieldValues()                { throw new UnsupportedOperationException("Not supported."); } // NOI18N
         @Override public Collection getSubClasses()                 { throw new UnsupportedOperationException("Not supported."); } // NOI18N

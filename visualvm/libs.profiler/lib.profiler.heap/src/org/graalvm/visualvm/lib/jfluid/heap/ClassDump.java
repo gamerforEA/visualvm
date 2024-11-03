@@ -233,6 +233,11 @@ class ClassDump extends HprofObject implements JavaClass {
         return getHprofBuffer().getID(fileOffset + classDumpSegment.classIDOffset);
     }
 
+    public int getJavaClassIndex() {
+        long instanceId = getJavaClassId();
+        return getHprof().idToOffsetMap.getInstanceIndexById(instanceId);
+    }
+
     public String getName() {
         return getLoadClass().getName();
     }

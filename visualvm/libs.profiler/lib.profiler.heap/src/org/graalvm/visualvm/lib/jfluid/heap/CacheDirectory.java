@@ -145,8 +145,8 @@ class CacheDirectory {
         }
     }
 
-    NumberList createNumberList(int idSize) throws IOException {
-        return new NumberList(idSize, this);
+    NumberList createNumberList() throws IOException {
+        return new NumberList(this);
     }
 
     private File lookupFile(String fileName, boolean checkParent) throws FileNotFoundException {

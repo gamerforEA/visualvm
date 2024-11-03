@@ -47,56 +47,27 @@ import java.util.Set;
 class NumberList {
 
     private static final int NUMBERS_IN_BLOCK = 3;
+    private static final int numberSize = Integer.BYTES;
+    private static final int blockSize = (NUMBERS_IN_BLOCK + 1) * numberSize;
+    private static final int MAX_BLOCK_COUNT = Integer.MAX_VALUE - 1000;
+
     private final File dataFile;
     private final RandomAccessFile data;
-    private final int numberSize;
-    private final int blockSize;
-    // Map <offset,block>
-    private final Map<Long,byte[]> blockCache;
-    private final Set<Long> dirtyBlocks;
-    private long blocks;
+    // Map <index,block>
+    private final Map<Integer,byte[]> blockCache;
+    private final Set<Integer> dirtyBlocks;
+    private int blocks;
     private MappedByteBuffer buf;
     private long mappedSize;
     private CacheDirectory cacheDirectory;
 
-    NumberList(long dumpFileSize, CacheDirectory cacheDir) throws IOException {
-        this(bytes(dumpFileSize), cacheDir);
-    }
-
-    NumberList(int elSize, CacheDirectory cacheDir) throws IOException {
+    NumberList(CacheDirectory cacheDir) throws IOException {
         dataFile = cacheDir.createTempFile("NBProfiler", ".ref"); // NOI18N
         data = new RandomAccessFile(dataFile, "rw"); // NOI18N
-        numberSize = elSize;
         blockCache = new BlockLRUCache<>();
         dirtyBlocks = new HashSet<>(100000);
-        blockSize = (NUMBERS_IN_BLOCK + 1) * numberSize;
         cacheDirectory = cacheDir;
         addBlock(); // first block is unused, since it starts at offset 0
-    }
-
-    private static int bytes(long number) {
-        if ((number & ~0xFFL) == 0L) {
-            return 1;
-        }
-        if ((number & ~0xFFFFL) == 0L) {
-            return 2;
-        }
-        if ((number & ~0xFFFFFFL) == 0L) {
-            return 3;
-        }
-        if ((number & ~0xFFFFFFFFL) == 0L) {
-            return 4;
-        }
-        if ((number & ~0xFFFFFFFFFFL) == 0L) {
-            return 5;
-        }
-        if ((number & ~0xFFFFFFFFFFFFL) == 0L) {
-            return 6;
-        }
-        if ((number & ~0xFFFFFFFFFFFFFFL) == 0L) {
-            return 7;
-        }
-        return 8;
     }
     
     protected void finalize() throws Throwable {
@@ -105,91 +76,91 @@ class NumberList {
         }
         super.finalize();
     }
-    
-    long addNumber(long startOffset,long number) throws IOException {
+
+    int addNumber(int startIndex,int number) throws IOException {
         int slot;
-        byte[] block = getBlock(startOffset);
+        byte[] block = getBlock(startIndex);
         for (slot=0;slot<NUMBERS_IN_BLOCK;slot++) {
-            long el = readNumber(block,slot);
-            if (el == 0L) {
-                writeNumber(startOffset,block,slot,number);
-                return startOffset;
+            int el = readNumber(block,slot);
+            if (el == 0) {
+                writeNumber(startIndex,block,slot,number);
+                return startIndex;
             }
             if (el == number) { // number is already in the list
-                return startOffset; // do nothing
+                return startIndex; // do nothing
             }
         }
-        long nextBlock = addBlock(); // create next blok
+        int nextBlock = addBlock(); // create next blok
         block = getBlock(nextBlock);
-        writeNumber(nextBlock,block,slot,startOffset); // put next block in front of old block
+        writeNumber(nextBlock,block,slot,startIndex); // put next block in front of old block
         writeNumber(nextBlock,block,0,number); // write number to first position in the new block
         return nextBlock;
     }
-    
-    long addFirstNumber(long number1,long number2) throws IOException {
-        long blockOffset = addBlock();
-        byte[] block = getBlock(blockOffset);
-        writeNumber(blockOffset,block,0,number1);
-        writeNumber(blockOffset,block,1,number2);
-        return blockOffset;
+
+    int addFirstNumber(int number1,int number2) throws IOException {
+        int blockIndex = addBlock();
+        byte[] block = getBlock(blockIndex);
+        writeNumber(blockIndex,block,0,number1);
+        writeNumber(blockIndex,block,1,number2);
+        return blockIndex;
     }
     
-    void putFirst(long startOffset,long number) throws IOException {
+    void putFirst(int startIndex,int number) throws IOException {
         int slot;
-        long offset = startOffset;
-        long movedNumber = 0;
+        int index = startIndex;
+        int movedNumber = 0;
         for(;;) {
-            byte[] block = getBlock(offset);
+            byte[] block = getBlock(index);
             for (slot=0;slot<NUMBERS_IN_BLOCK;slot++) {
-                long el = readNumber(block,slot);
-                if (offset == startOffset && slot == 0) { // first block
+                int el = readNumber(block,slot);
+                if (index == startIndex && slot == 0) { // first block
                     if (number == el) { // already first element 
                         return;
                     }
                     movedNumber = el;
-                    writeNumber(offset,block,slot,number);
-                } else if (el == 0L) { // end of the block, move to next one
+                    writeNumber(index,block,slot,number);
+                } else if (el == 0) { // end of the block, move to next one
                     break;
                 } else if (el == number) { // number is already in the list
-                    writeNumber(offset,block,slot,movedNumber);    // replace number and return                
+                    writeNumber(index,block,slot,movedNumber);    // replace number and return
                     return;
                 }
             }
-            offset = getOffsetToNextBlock(block);
-            if (offset == 0L) {
+            index = getIndexToNextBlock(block);
+            if (index == 0) {
                 System.out.println("Error - number not found at end");
                 return;
             }
         }
     }
-    
-    long getFirstNumber(long startOffset) throws IOException {
-        byte[] block = getBlock(startOffset);
+
+    int getFirstNumber(int startIndex) throws IOException {
+        byte[] block = getBlock(startIndex);
         return readNumber(block,0);
     }
     
-    LongIterator getNumbersIterator(long startOffset) throws IOException {
-        return new NumberIterator(startOffset);
+    IntIterator getNumbersIterator(int startIndex) throws IOException {
+        return new NumberIterator(startIndex);
     }
 
-    List<Long> getNumbers(long startOffset) throws IOException {
+    List<Integer> getNumbers(int startIndex) throws IOException {
         int slot;
-        List<Long> numbers = new ArrayList<>();
-        
+        List<Integer> numbers = new ArrayList<>();
+
         for(;;) {
-            byte[] block = getBlock(startOffset);
+            byte[] block = getBlock(startIndex);
             for (slot=0;slot<NUMBERS_IN_BLOCK;slot++) {
-                long el = readNumber(block,slot);
-                if (el == 0L) {     // end of the block, move to next one
+                int el = readNumber(block,slot);
+                if (el == 0) {     // end of the block, move to next one
                     break;
                 }
-                numbers.add(new Long(el));
+                numbers.add(new Integer(el));
             }
-            long nextBlock = getOffsetToNextBlock(block);
-            if (nextBlock == 0L) {
+            int nextBlock = getIndexToNextBlock(block);
+            if (nextBlock == 0) {
                 return numbers;
             }
-            startOffset = nextBlock;
+            startIndex = nextBlock;
         }
     }
     
@@ -216,108 +187,87 @@ class NumberList {
         }
     }
     
-    private long getOffsetToNextBlock(byte[] block) {
+    private static int getIndexToNextBlock(byte[] block) {
         return readNumber(block,NUMBERS_IN_BLOCK);
     }
     
-    private long readNumber(byte[] block,int slot) {
+    private static int readNumber(byte[] block,int slot) {
         int offset = slot*numberSize;
-        long el = 0;
-//        for (int i=0;i<numberSize;i++) {
-//            el <<= 8;
-//            el |= ((int)block[offset+i]) & 0xFF;
-//        }    
-        if (numberSize == 4) {
-            return ((long)getInt(block,offset)) & 0xFFFFFFFFL;
-        } else if (numberSize == 8) {
-            return getLong(block,offset);
-        }
-        return el;
+        return getInt(block, offset);
     }
 
-    private int getInt(byte[] buf, int i) {
-        int ch1 = ((int) buf[i++]) & 0xFF;
-        int ch2 = ((int) buf[i++]) & 0xFF;
-        int ch3 = ((int) buf[i++]) & 0xFF;
-        int ch4 = ((int) buf[i]) & 0xFF;
+    private static int getInt(byte[] buf, int i) {
+        int ch1 = ((int) buf[i]) & 0xFF;
+        int ch2 = ((int) buf[i + 1]) & 0xFF;
+        int ch3 = ((int) buf[i + 2]) & 0xFF;
+        int ch4 = ((int) buf[i + 3]) & 0xFF;
 
-        return ((ch1 << 24) + (ch2 << 16) + (ch3 << 8) + (ch4 << 0));
+        return ((ch1 << 24) + (ch2 << 16) + (ch3 << 8) + (ch4));
     }
 
-    private long getLong(byte[] buf, int i) {
-       return (((long)buf[i++] << 56) +
-              ((long)(buf[i++] & 255) << 48) +
-              ((long)(buf[i++] & 255) << 40) +
-              ((long)(buf[i++] & 255) << 32) +
-              ((long)(buf[i++] & 255) << 24) +
-              ((buf[i++] & 255) << 16) +
-              ((buf[i++] & 255) <<  8) +
-              ((buf[i++] & 255) <<  0));
-    }
-        
-    private synchronized void writeNumber(long blockOffset,byte[] block,int slot,long element) throws IOException {
+    private synchronized void writeNumber(int blockIndex,byte[] block,int slot,int element) throws IOException {
+        long blockOffset = (long) blockIndex * blockSize;
         if (blockOffset < mappedSize) {
             long offset = blockOffset+slot*numberSize;
-            buf.position((int)offset);
-            for (int i=numberSize-1;i>=0;i--) {
-                byte el = (byte)(element >> (i*8));
-                
-                buf.put(el);
-            }            
+            buf.putInt((int)offset, element);
         } else {
-            Long offsetObj = new Long(blockOffset);
             int offset = slot*numberSize;
-            for (int i=numberSize-1;i>=0;i--) {
-                byte el = (byte)(element >> (i*8));
-                block[offset++]=el;
-            }
-            dirtyBlocks.add(offsetObj);
+            block[offset] = (byte) (element >> 24);
+            block[offset + 1] = (byte) (element >> 16);
+            block[offset + 2] = (byte) (element >> 8);
+            block[offset + 3] = (byte) (element);
+            dirtyBlocks.add(new Integer(blockIndex));
             if (dirtyBlocks.size()>10000) {
                 flushDirtyBlocks();
             }
         }
     }
     
-    private synchronized byte[] getBlock(long offset) throws IOException {
+    private synchronized byte[] getBlock(int index) throws IOException {
+        long offset = (long) index * blockSize;
         byte[] block;
+
         if (offset < mappedSize) {
             block = new byte[blockSize];
-            buf.position((int)offset);
-            buf.get(block);
+            buf.get((int)offset, block);
             return block;
         } else {
-            Long offsetObj = new Long(offset);
+            Integer indexObj = new Integer(index);
 
-            block = blockCache.get(offsetObj);
+            block = blockCache.get(indexObj);
             if (block == null) {
                 block = new byte[blockSize];
                 data.seek(offset);
                 data.readFully(block);
-                blockCache.put(offsetObj,block);
+                blockCache.put(indexObj,block);
             }
             return block;
         }
     }
 
-    private long addBlock() throws IOException {
-        long offset=blocks*blockSize;
-        blockCache.put(new Long(offset),new byte[blockSize]);
+    private int addBlock() throws IOException {
+        int index=blocks;
+        if (index >= MAX_BLOCK_COUNT) {
+            throw new IllegalStateException("Too many blocks");
+        }
+
+        blockCache.put(new Integer(index),new byte[blockSize]);
         blocks++;
-        return offset;
+        return index;
     }
 
     private void flushDirtyBlocks() throws IOException {
         if (dirtyBlocks.isEmpty()) {
             return;
         }
-        Long[] dirty=dirtyBlocks.toArray(new Long[0]);
+        Integer[] dirty=dirtyBlocks.toArray(new Integer[0]);
         Arrays.sort(dirty);
         byte blocks[] = new byte[1024*blockSize];
         int dataOffset = 0;
         long lastBlockOffset = 0;
-        for (Long blockOffsetLong : dirty) {
-            byte[] block = blockCache.get(blockOffsetLong);
-            long blockOffset = blockOffsetLong.longValue();
+        for (Integer blockIndexObj : dirty) {
+            byte[] block = blockCache.get(blockIndexObj);
+            long blockOffset = (long) blockIndexObj.intValue() * blockSize;
             if (lastBlockOffset+dataOffset==blockOffset && dataOffset <= blocks.length - blockSize) {
                 System.arraycopy(block,0,blocks,dataOffset,blockSize);
                 dataOffset+=blockSize;
@@ -338,8 +288,7 @@ class NumberList {
     //---- Serialization support
     void writeToStream(DataOutputStream out) throws IOException {
         out.writeUTF(dataFile.getAbsolutePath());
-        out.writeInt(numberSize);
-        out.writeLong(blocks);
+        out.writeInt(blocks);
         out.writeBoolean(buf != null);        
     }
 
@@ -349,25 +298,23 @@ class NumberList {
         cacheDirectory = cacheDir;
         dataFile = cacheDirectory.getCacheFile(dis.readUTF());
         data = new RandomAccessFile(dataFile, "rw"); // NOI18N
-        numberSize = dis.readInt();
-        blocks = dis.readLong();
+        blocks = dis.readInt();
         mmaped = dis.readBoolean();
         blockCache = new BlockLRUCache<>();
         dirtyBlocks = new HashSet<>(100000);
-        blockSize = (NUMBERS_IN_BLOCK + 1) * numberSize;
         if (mmaped) {
             mmapData();
         }
-    }    
+    }
     
-    private class NumberIterator extends LongIterator {
+    private class NumberIterator extends IntIterator {
         private int slot;
         private byte[] block;
-        private long nextNumber;
+        private int nextNumber;
 
-        private NumberIterator(long startOffset) throws IOException {
+        private NumberIterator(int startIndex) throws IOException {
             slot = 0;
-            block = getBlock(startOffset);
+            block = getBlock(startIndex);
             nextNumber();
         }
 
@@ -377,9 +324,9 @@ class NumberList {
         }
 
         @Override
-        long next() {
+        int next() {
             if (hasNext()) {
-                long num = nextNumber;
+                int num = nextNumber;
                 try {
                     nextNumber();
                 } catch (IOException ex) {
@@ -393,7 +340,7 @@ class NumberList {
 
         private void nextNumber() throws IOException {
             if (slot < NUMBERS_IN_BLOCK) {
-                long nextNum = readNumber(block,slot++);
+                int nextNum = readNumber(block,slot++);
                 if (nextNum == 0) {     // end of the block, move to next one
                     nextBlock();
                 } else {
@@ -405,7 +352,7 @@ class NumberList {
         }
 
         private void nextBlock() throws IOException {
-            long nextBlock = getOffsetToNextBlock(block);
+            int nextBlock = getIndexToNextBlock(block);
 
             if (nextBlock == 0) { // end of list
                 nextNumber = 0;

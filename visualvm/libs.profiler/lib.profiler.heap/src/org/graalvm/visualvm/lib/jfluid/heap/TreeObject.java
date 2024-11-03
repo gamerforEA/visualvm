@@ -43,14 +43,14 @@ class TreeObject {
     //~ Instance fields ----------------------------------------------------------------------------------------------------------
 
     private HprofHeap heap;
-    private LongBuffer readBuffer;
-    private LongBuffer writeBuffer;
-    private Set<Long> unique;
+    private IntBuffer readBuffer;
+    private IntBuffer writeBuffer;
+    private Set<Integer> unique;
 //private long nextLevelSize;
 
     //~ Constructors -------------------------------------------------------------------------------------------------------------
 
-    TreeObject(HprofHeap h, LongBuffer leaves) {
+    TreeObject(HprofHeap h, IntBuffer leaves) {
         heap = h;
         writeBuffer = leaves;
     }
@@ -80,16 +80,16 @@ class TreeObject {
         boolean changed = false;
         int idSize = heap.dumpBuffer.getIDSize();
         for (;;) {
-            long instanceId = readLong();
+            int instanceIndex = readInt();
             Instance instance;
             List<FieldValue> fieldValues;
             Iterator<FieldValue> valuesIt;
             long retainedSize = 0;
             
-            if (instanceId == 0) {  // end of level
+            if (instanceIndex == 0) {  // end of level
                 break;
             }
-            instance = heap.getInstanceByID(instanceId);
+            instance = heap.getInstanceByIndex(instanceIndex);
             if (instance instanceof ObjectArrayInstance) {
                 ObjectArrayDump array = (ObjectArrayDump) instance;
                 int arrSize = array.getLength();
@@ -115,7 +115,7 @@ class TreeObject {
                 fieldValues = instance.getFieldValues();
             } else {
                 if (instance == null) {
-                    System.err.println("HeapWalker Warning - null instance for " + instanceId); // NOI18N
+                    System.err.println("HeapWalker Warning - null instance for " + instanceIndex); // NOI18N
                     continue;
                 }
                 throw new IllegalArgumentException("Illegal type " + instance.getClass()); // NOI18N
@@ -143,10 +143,10 @@ class TreeObject {
             entry.setRetainedSize(instance.getSize()+retainedSize);
             entry.setTreeObj();
             if (entry.hasOnlyOneReference()) {
-                long gcRootPointer = entry.getNearestGCRootPointer();
+                int gcRootPointer = entry.getNearestGCRootPointer();
                 if (gcRootPointer != 0) {
                     if (unique.add(gcRootPointer)) {
-                        writeLong(gcRootPointer);
+                        writeInt(gcRootPointer);
                     }
                 }
             }
@@ -156,20 +156,20 @@ class TreeObject {
     }
     
     private void createBuffers() {
-        readBuffer = new LongBuffer(BUFFER_SIZE, heap.cacheDirectory);
+        readBuffer = new IntBuffer(BUFFER_SIZE, heap.cacheDirectory);
     }
     
     private void deleteBuffers() {
         readBuffer.delete();
         writeBuffer.delete();
     }
-        
-    private long readLong() throws IOException {
-        return readBuffer.readLong();
+
+    private int readInt() throws IOException {
+        return readBuffer.readInt();
     }
     
     private void switchBuffers() throws IOException {
-        LongBuffer b = readBuffer;
+        IntBuffer b = readBuffer;
         readBuffer = writeBuffer;
         writeBuffer = b;
         readBuffer.startReading();
@@ -177,9 +177,9 @@ class TreeObject {
         unique = new HashSet<>(4000);
     }
     
-    private void writeLong(long instanceId) throws IOException {
-        if (instanceId != 0) {
-            writeBuffer.writeLong(instanceId);
+    private void writeInt(int instanceIndex) throws IOException {
+        if (instanceIndex != 0) {
+            writeBuffer.writeInt(instanceIndex);
 //nextLevelSize++;
         }
     }

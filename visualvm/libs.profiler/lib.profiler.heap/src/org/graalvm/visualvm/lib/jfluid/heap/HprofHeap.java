@@ -216,6 +216,20 @@ class HprofHeap implements Heap {
         return getInstanceByOffset(new long[] {entry.getOffset()});
     }
 
+    public Instance getInstanceByIndex(int instanceIndex) {
+        if (instanceIndex == 0) {
+            return null;
+        }
+
+        computeInstances();
+        LongMap.Entry entry = idToOffsetMap.getByIndex(instanceIndex);
+
+        if (entry == null) {
+            return null;
+        }
+        return getInstanceByOffset(new long[] {entry.getOffset()});
+    }
+
     public JavaClass getJavaClassByID(long javaclassId) {
         return getClassDumpSegment().getClassDumpByID(javaclassId);
     }
@@ -578,14 +592,14 @@ class HprofHeap implements Heap {
         computeReferences();
         
         List<Value> refs = new ArrayList<>();
-        LongIterator refIdsIt = idToOffsetMap.get(instanceId).getReferences();
+        IntIterator refIdsIt = idToOffsetMap.get(instanceId).getReferences();
         int idSize = dumpBuffer.getIDSize();
         ClassDumpSegment classDumpBounds = getClassDumpSegment();
         long[] offset = new long[1];
         
         while (refIdsIt.hasNext()) {
-            long foundInstanceId = refIdsIt.next();
-            offset[0] = idToOffsetMap.get(foundInstanceId).getOffset();
+            int foundInstanceIndex = refIdsIt.next();
+            offset[0] = idToOffsetMap.getByIndex(foundInstanceIndex).getOffset();
             long start = offset[0];
             int tag = readDumpTag(offset);
 
@@ -624,6 +638,7 @@ class HprofHeap implements Heap {
                     }
                 }
             } else if (tag == CLASS_DUMP) {
+                long foundInstanceId = idToOffsetMap.getInstanceIdByIndex(foundInstanceIndex);
                 ClassDump cls = classDumpBounds.getClassDumpByID(foundInstanceId);
                 cls.findStaticReferencesFor(instanceId, refs);
             }
@@ -657,6 +672,8 @@ class HprofHeap implements Heap {
                     long instanceId = dumpBuffer.getID(start+1);
                     long inOff = start+1+idSize+4+idSize+4;
 
+                    int instanceIndex = -1;
+
                     for (Field f : classDump.getAllInstanceFields()) {
                         HprofField field = (HprofField)f;
                         if (field.getValueType() == HprofHeap.OBJECT) {
@@ -665,7 +682,13 @@ class HprofHeap implements Heap {
                             if (outId != 0) {
                                 LongMap.Entry entry = idToOffsetMap.get(outId);
                                 if (entry != null) {
-                                    entry.addReference(instanceId);
+                                    if (instanceIndex == -1) {
+                                        instanceIndex = idToOffsetMap.getInstanceIndexById(instanceId);
+                                    }
+
+                                    if (instanceIndex != 0) {
+                                        entry.addReference(instanceIndex);
+                                    }
                                 } else {
                                     //    System.err.println("instance entry:" + Long.toHexString(outId));
                                 }
@@ -678,14 +701,21 @@ class HprofHeap implements Heap {
                 long instanceId = dumpBuffer.getID(start+1);
                 int elements = dumpBuffer.getInt(start+1+idSize+4);
                 long position = start+1+idSize+4+4+idSize;
-                
+
+                int instanceIndex = -1;
+
                 for(int i=0;i<elements;i++,position+=idSize) {
                     long outId = dumpBuffer.getID(position);
-                    
+
                     if (outId == 0) continue;
                     LongMap.Entry entry = idToOffsetMap.get(outId);
                     if (entry != null) {
-                        entry.addReference(instanceId);
+                        if (instanceIndex == -1) {
+                            instanceIndex = idToOffsetMap.getInstanceIndexById(instanceId);
+                            if (instanceIndex == 0) break;
+                        }
+
+                        entry.addReference(instanceIndex);
                     } else {
                         //    System.err.println("bad array entry:" + Long.toHexString(outId));
                     }
@@ -705,7 +735,7 @@ class HprofHeap implements Heap {
                             //    System.err.println("instance entry:" + Long.toHexString(outId));
                             continue;
                         }
-                        entry.addReference(cls.getJavaClassId());
+                        entry.addReference(cls.getJavaClassIndex());
                     }
                 }
             }
@@ -723,7 +753,7 @@ class HprofHeap implements Heap {
             return;
         }
         HeapProgress.progressStart();
-        LongBuffer leaves = nearestGCRoot.getLeaves();
+        IntBuffer leaves = nearestGCRoot.getLeaves();
         cacheDirectory.setDirty(true);
         new TreeObject(this,leaves).computeTrees();
         domTree = new DominatorTree(this,nearestGCRoot.getMultipleParents());
@@ -731,20 +761,20 @@ class HprofHeap implements Heap {
 
         // deep path first
         try {
-            LongBuffer deepPathBuffer = nearestGCRoot.getDeepPathBuffer();
-            LongBuffer deepPath = deepPathBuffer.revertBuffer();
+            IntBuffer deepPathBuffer = nearestGCRoot.getDeepPathBuffer();
+            IntBuffer deepPath = deepPathBuffer.revertBuffer();
 
             deepPathBuffer.reset();
             deepPathBuffer.delete();
             if (deepPath.hasData()) {
-                for (long deepObjId = deepPath.readLong(); deepObjId != 0; deepObjId = deepPath.readLong()) {
-                    LongMap.Entry deepObjEntry = idToOffsetMap.get(deepObjId);
+                for (int deepObjIndex = deepPath.readInt(); deepObjIndex != 0; deepObjIndex = deepPath.readInt()) {
+                    LongMap.Entry deepObjEntry = idToOffsetMap.getByIndex(deepObjIndex);
                     assert deepObjEntry.isDeepObj();
-                    long idomId = domTree.getIdomId(deepObjId, deepObjEntry);
-                    LongMap.Entry idomEntry = idToOffsetMap.get(idomId);
+                    int idomIndex = domTree.getIdomIndex(deepObjIndex, deepObjEntry);
+                    LongMap.Entry idomEntry = idToOffsetMap.getByIndex(idomIndex);
 
                     if (!deepObjEntry.isTreeObj()) {
-                        Instance deepInstance = getInstanceByID(deepObjId);
+                        Instance deepInstance = getInstanceByIndex(deepObjIndex);
                         long size = deepInstance.getSize();
                         long origSize = deepObjEntry.getRetainedSize();
 
@@ -781,7 +811,7 @@ class HprofHeap implements Heap {
             }
             long instanceId = dumpBuffer.getID(start + instanceIdOffset);
             LongMap.Entry instanceEntry = idToOffsetMap.get(instanceId);
-            long idom = domTree.getIdomId(instanceId,instanceEntry);
+            int idom = domTree.getIdomIndex(instanceEntry.getListIndex(),instanceEntry);
             boolean isTreeObj = instanceEntry.isTreeObj();
             boolean deepObj = instanceEntry.isDeepObj();
             long instSize = 0;
@@ -795,7 +825,7 @@ class HprofHeap implements Heap {
             }
             if (idom != 0) {
                 long size;
-                LongMap.Entry entry = idToOffsetMap.get(idom);
+                LongMap.Entry entry = idToOffsetMap.getByIndex(idom);
                 
                 if (entry.isDeepObj()) {
                     continue;
@@ -807,8 +837,8 @@ class HprofHeap implements Heap {
                     assert instSize != 0;
                     size = instSize;
                 }
-                for (;idom!=0;idom=domTree.getIdomId(idom,entry)) {
-                    entry = idToOffsetMap.get(idom);
+                for (;idom!=0;idom=domTree.getIdomIndex(idom,entry)) {
+                    entry = idToOffsetMap.getByIndex(idom);
                     if (entry.isTreeObj()) {
                         break;
                     }

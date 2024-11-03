@@ -34,14 +34,14 @@ import java.util.TreeSet;
 
 /**
  * key - ID (long/int) of heap object
- * value (8/4) + 4 + 4 + 1 + (8/4) + (8/4)
+ * value (8/4) + 4 + 4 + 1 + 4 + (8/4)
  *  - index (int)
  *  - offset (long/int) to dump file
  *  - instance index (int) - unique number of this {@link Instance} among all instances of the same Java Class
  *  - references flags (byte) - bit 0 set - has zero or one reference,
  *                            - bit 1 set - has GC root
  *                            - bit 2 set - tree object
- *  - ID/offset (long/int) - ID if reference flag bit 0 is set, otherwise offset to reference list file
+ *  - ID/offset (int) - ID if reference flag bit 0 is set, otherwise block index of reference list file
  *  - retained size (long/int)
  *
  * @author Tomas Hurka
@@ -112,23 +112,23 @@ class LongMap extends AbstractLongMap {
             return (getFlags() & NUMBER_LIST) == 0;
         }
         
-        void setNearestGCRootPointer(long instanceId) {
+        void setNearestGCRootPointer(int instanceIndex) {
             byte flags = (byte)(getFlags() | GC_ROOT);
             setFlags(flags);
             if ((flags & NUMBER_LIST) != 0) {   // put GC root pointer on the first place in references list
                 try {
-                    referenceList.putFirst(getReferencesPointer(),instanceId);
+                    referenceList.putFirst(getReferencesPointer(),instanceIndex);
                 } catch (IOException ex) {
                     ex.printStackTrace();
                 }
             }
         }
 
-        long getNearestGCRootPointer() {
+        int getNearestGCRootPointer() {
             try {
                 byte flag = getFlags();
                 if ((flag & GC_ROOT) != 0) { // has GC root pointer
-                    long ref = getReferencesPointer();
+                    int ref = getReferencesPointer();
                     if ((flag & NUMBER_LIST) != 0) { // get GC root pointer from number list
                         return referenceList.getFirstNumber(ref);
                     }
@@ -137,23 +137,23 @@ class LongMap extends AbstractLongMap {
             } catch (IOException ex) {
                 ex.printStackTrace();
             }
-            return 0L;
+            return 0;
         }
         
-        void addReference(long instanceId) {
+        void addReference(int instanceIndex) {
             try {
                 byte flags = getFlags();
-                long ref = getReferencesPointer();
+                int ref = getReferencesPointer();
                 if ((flags & NUMBER_LIST) == 0) { // reference list is not used
-                    if (ref == 0L) {    // no reference was set
-                        setReferencesPointer(instanceId);
-                    } else if (ref != instanceId) {    // one reference was set, switch to reference list
+                    if (ref == 0) {    // no reference was set
+                        setReferencesPointer(instanceIndex);
+                    } else if (ref != instanceIndex) {    // one reference was set, switch to reference list
                        setFlags((byte)(flags | NUMBER_LIST));
-                       long list = referenceList.addFirstNumber(ref,instanceId);
+                       int list = referenceList.addFirstNumber(ref,instanceIndex);
                        setReferencesPointer(list);
                     }
                 } else { // use reference list
-                    long newRef = referenceList.addNumber(ref,instanceId);
+                    int newRef = referenceList.addNumber(ref,instanceIndex);
                     if (newRef != ref) {
                         setReferencesPointer(newRef);
                     }
@@ -163,14 +163,14 @@ class LongMap extends AbstractLongMap {
             }
         }
         
-        LongIterator getReferences() {
+        IntIterator getReferences() {
             byte flags = getFlags();
-            long ref = getReferencesPointer();
+            int ref = getReferencesPointer();
             if ((flags & NUMBER_LIST) == 0) {
-                if (ref == 0L) {
-                    return LongIterator.EMPTY_ITERATOR;
+                if (ref == 0) {
+                    return IntIterator.EMPTY_ITERATOR;
                 } else {
-                    return LongIterator.singleton(ref);
+                    return IntIterator.singleton(ref);
                 }
             } else {
                 try {
@@ -179,7 +179,7 @@ class LongMap extends AbstractLongMap {
                     ex.printStackTrace();
                 }
             }
-            return LongIterator.EMPTY_ITERATOR;
+            return IntIterator.EMPTY_ITERATOR;
         }
         
         long getOffset() {
@@ -188,25 +188,25 @@ class LongMap extends AbstractLongMap {
 
         void setRetainedSize(long size) {
             if (FOFFSET_SIZE == 4) {
-                dumpBuffer.putInt(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4 + 1 + ID_SIZE, (int)size);
+                dumpBuffer.putInt(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4 + 1 + 4, (int)size);
             } else {
-                dumpBuffer.putLong(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4 + 1 + ID_SIZE, size);
+                dumpBuffer.putLong(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4 + 1 + 4, size);
             }
         }
 
         long getRetainedSize() {
             if (FOFFSET_SIZE == 4) {
-                return dumpBuffer.getInt(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4 + 1 + ID_SIZE);
+                return dumpBuffer.getInt(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4 + 1 + 4);
             }
-            return dumpBuffer.getLong(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4 + 1 + ID_SIZE);
+            return dumpBuffer.getLong(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4 + 1 + 4);
         }
 
-        private void setReferencesPointer(long instanceId) {
-            putID(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4 + 1, instanceId);
+        private void setReferencesPointer(int instanceIndex) {
+            dumpBuffer.putInt(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4 + 1, instanceIndex);
         }
 
-        private long getReferencesPointer() {
-            return getID(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4 + 1);
+        private int getReferencesPointer() {
+            return dumpBuffer.getInt(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4 + 1);
         }
 
         private void setFlags(byte flags) {
@@ -260,13 +260,22 @@ class LongMap extends AbstractLongMap {
     //~ Constructors -------------------------------------------------------------------------------------------------------------
 
     LongMap(int size,int idSize,int foffsetSize,CacheDirectory cacheDir) throws FileNotFoundException, IOException {
-        super(size,idSize,foffsetSize,4 + foffsetSize + 4 + 1 + idSize + foffsetSize, cacheDir);
+        super(size,idSize,foffsetSize,4 + foffsetSize + 4 + 1 + 4 + foffsetSize, cacheDir);
         instanceList = new LongList(size + 1);
         instanceList.add(0); // Instance ID and index can't be zero
-        referenceList = cacheDir.createNumberList(ID_SIZE);
+        referenceList = cacheDir.createNumberList();
     }
 
     //~ Methods ------------------------------------------------------------------------------------------------------------------
+
+    long getInstanceIdByIndex(int index) {
+        return instanceList.get(index);
+    }
+
+    int getInstanceIndexById(long instanceId) {
+        Entry entry = get(instanceId);
+        return entry == null ? 0 : entry.getListIndex();
+    }
 
     Entry createEntry(long index) {
         return new Entry(index);
@@ -279,7 +288,7 @@ class LongMap extends AbstractLongMap {
     }
     
     Entry getByIndex(int index) {
-        return get(instanceList.get(index));
+        return get(getInstanceIdByIndex(index));
     }
 
     Entry get(long key) {

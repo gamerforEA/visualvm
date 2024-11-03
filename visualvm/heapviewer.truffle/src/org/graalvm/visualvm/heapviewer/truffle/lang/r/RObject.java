@@ -568,6 +568,11 @@ class RObject extends TruffleObject.InstanceBased {
         }
 
         @Override
+        public int getInstanceIndex() {
+            throw new UnsupportedOperationException("Not supported yet.");  // NOI18N
+        }
+
+        @Override
         public int getInstanceNumber() {
             return pairListInstance.getInstanceNumber();
         }

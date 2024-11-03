@@ -419,6 +419,7 @@ class JavaDiffClassesProvider {
         private final int instancesCount;
         private final long retainedSizeByClass;
         private final long javaClassId;
+        private final int javaClassIndex;
         private final String name;
         
         ExternalJavaClass(JavaClass javaClass, boolean retained) {
@@ -428,6 +429,7 @@ class JavaDiffClassesProvider {
             instancesCount = javaClass.getInstancesCount();
             retainedSizeByClass = retained ? javaClass.getRetainedSizeByClass() : DataType.RETAINED_SIZE.getNotAvailableValue();
             javaClassId = javaClass.getJavaClassId();
+            javaClassIndex = javaClass.getJavaClassIndex();
             name = javaClass.getName();
         }
 
@@ -494,6 +496,11 @@ class JavaDiffClassesProvider {
         @Override
         public long getJavaClassId() {
             return javaClassId;
+        }
+
+        @Override
+        public int getJavaClassIndex() {
+            return this.javaClassIndex;
         }
 
         @Override

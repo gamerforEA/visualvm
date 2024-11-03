@@ -75,6 +75,11 @@ class InstanceDump extends HprofObject implements Instance {
         return dumpClass.getHprofBuffer().getID(fileOffset + 1);
     }
 
+    public int getInstanceIndex() {
+        long instanceId = getInstanceId();
+        return getHprof().idToOffsetMap.getInstanceIndexById(instanceId);
+    }
+
     public int getInstanceNumber() {
         return getHprof().idToOffsetMap.get(getInstanceId()).getIndex();
     }

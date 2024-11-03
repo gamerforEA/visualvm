@@ -61,6 +61,14 @@ public interface Instance {
     long getInstanceId();
 
     /**
+     * gets unique (in whole heap) ID of this {@link Instance}.
+     * <br>
+     * Speed: normal
+     * @return Index of this {@link Instance}
+     */
+    int getInstanceIndex();
+
+    /**
      * gets unique number of this {@link Instance} among all instances of the same Java Class.
      * Instances are numbered sequentially starting from 1.
      * <br>

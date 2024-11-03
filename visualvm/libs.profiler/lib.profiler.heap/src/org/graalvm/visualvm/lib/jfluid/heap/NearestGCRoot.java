@@ -60,9 +60,9 @@ class NearestGCRoot {
     private HprofHeap heap;
     private LongBuffer readBuffer;
     private LongBuffer writeBuffer;
-    private LongBuffer deepPathBuffer;
-    private LongBuffer leaves;
-    private LongBuffer multipleParents;
+    private IntBuffer deepPathBuffer;
+    private IntBuffer leaves;
+    private IntBuffer multipleParents;
     private Set<JavaClass> referenceClasses;
     private boolean gcRootsComputed;
     private long allInstances;
@@ -85,8 +85,8 @@ class NearestGCRoot {
             return instance;
         }
         computeGCRoots();
-        long nextGCPathId = heap.idToOffsetMap.get(instance.getInstanceId()).getNearestGCRootPointer();
-        return heap.getInstanceByID(nextGCPathId);
+        int nextGCPathIndex = heap.idToOffsetMap.get(instance.getInstanceId()).getNearestGCRootPointer();
+        return heap.getInstanceByIndex(nextGCPathIndex);
     }
 
     private boolean isSpecialReference(FieldValue value, Instance instance) {
@@ -252,9 +252,9 @@ class NearestGCRoot {
     private void createBuffers() {
         readBuffer = new LongBuffer(BUFFER_SIZE, heap.cacheDirectory);
         writeBuffer = new LongBuffer(BUFFER_SIZE, heap.cacheDirectory);
-        leaves = new LongBuffer(BUFFER_SIZE, heap.cacheDirectory);
-        multipleParents = new LongBuffer(BUFFER_SIZE, heap.cacheDirectory);
-        deepPathBuffer = new LongBuffer(BUFFER_SIZE, heap.cacheDirectory);
+        leaves = new IntBuffer(BUFFER_SIZE, heap.cacheDirectory);
+        multipleParents = new IntBuffer(BUFFER_SIZE, heap.cacheDirectory);
+        deepPathBuffer = new IntBuffer(BUFFER_SIZE, heap.cacheDirectory);
     }
 
     private void deleteBuffers() {
@@ -312,20 +312,21 @@ class NearestGCRoot {
         if (refInstanceId != 0) {
             LongMap.Entry entry = heap.idToOffsetMap.get(refInstanceId);
 
-            if (entry != null && entry.getNearestGCRootPointer() == 0L && heap.gcRoots.getGCRoots(refInstanceId) == null) {
+            if (entry != null && entry.getNearestGCRootPointer() == 0 && heap.gcRoots.getGCRoots(refInstanceId) == null) {
+                int refInstanceIndex = entry.getListIndex();
                 writeLong(entry.getOffset());
                 if (level > DEEP_LEVEL) {
-                    deepPathBuffer.writeLong(refInstanceId);
+                    deepPathBuffer.writeInt(refInstanceIndex);
                     entry.setDeepObj();
                 }
                 if (addRefInstanceId) {
                     if (!checkReferences(refInstanceId, instanceId)) {
-                        entry.addReference(instanceId);
+                        entry.addReference(refInstanceIndex);
                     }
                 }
-                entry.setNearestGCRootPointer(instanceId);
+                entry.setNearestGCRootPointer(refInstanceIndex);
                 if (!entry.hasOnlyOneReference()) {
-                    multipleParents.writeLong(refInstanceId);
+                    multipleParents.writeInt(refInstanceIndex);
 //multiParentsCount++;
                 }
                 return true;
@@ -361,20 +362,20 @@ class NearestGCRoot {
         entry.setRetainedSize(size);
 //leavesCount++;
         if (entry.hasOnlyOneReference()) {
-            long gcRootPointer = entry.getNearestGCRootPointer();
+            int gcRootPointer = entry.getNearestGCRootPointer();
             if (gcRootPointer != 0) {
-                LongMap.Entry gcRootPointerEntry = heap.idToOffsetMap.get(gcRootPointer);
+                LongMap.Entry gcRootPointerEntry = heap.idToOffsetMap.getByIndex(gcRootPointer);
                 
                 if (gcRootPointerEntry.getRetainedSize() == 0) {
                     gcRootPointerEntry.setRetainedSize(-1);
-                    leaves.writeLong(gcRootPointer);
+                    leaves.writeInt(gcRootPointer);
 //firstLevel++;
                 }
             }
         }
     }
 
-    LongBuffer getLeaves() {
+    IntBuffer getLeaves() {
         computeGCRoots();
 //System.out.println("Multi par.  "+multiParentsCount);
 //System.out.println("Leaves      "+leavesCount);
@@ -382,13 +383,13 @@ class NearestGCRoot {
 //System.out.println("First level "+firstLevel);
         return leaves;
     }
-    
-    LongBuffer getMultipleParents() {
+
+    IntBuffer getMultipleParents() {
         computeGCRoots();
         return multipleParents;
     }
 
-    LongBuffer getDeepPathBuffer() {
+    IntBuffer getDeepPathBuffer() {
         computeGCRoots();
         return deepPathBuffer;
     }
@@ -407,9 +408,9 @@ class NearestGCRoot {
         this(h);
         gcRootsComputed = dis.readBoolean();
         if (gcRootsComputed) {
-            leaves = new LongBuffer(dis, heap.cacheDirectory);
-            multipleParents = new LongBuffer(dis, heap.cacheDirectory);
-            deepPathBuffer = new LongBuffer(dis, heap.cacheDirectory);
+            leaves = new IntBuffer(dis, heap.cacheDirectory);
+            multipleParents = new IntBuffer(dis, heap.cacheDirectory);
+            deepPathBuffer = new IntBuffer(dis, heap.cacheDirectory);
         }
     }
 }

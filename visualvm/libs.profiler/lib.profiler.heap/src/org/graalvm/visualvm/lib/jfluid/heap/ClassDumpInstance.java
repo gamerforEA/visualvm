@@ -58,6 +58,11 @@ class ClassDumpInstance implements Instance {
         return classDump.getJavaClassId();
     }
 
+    public int getInstanceIndex() {
+        long instanceId = getInstanceId();
+        return ((HprofHeap) classDump.getHeap()).idToOffsetMap.getInstanceIndexById(instanceId);
+    }
+
     public int getInstanceNumber() {
         return classDump.getHprof().idToOffsetMap.get(getInstanceId()).getIndex();
     }

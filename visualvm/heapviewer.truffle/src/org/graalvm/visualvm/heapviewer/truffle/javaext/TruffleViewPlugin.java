@@ -145,6 +145,7 @@ class TruffleViewPlugin extends HeapViewPlugin {
         @Override public List getFieldValues()                      { throw new UnsupportedOperationException("Not supported."); } // NOI18N
         @Override public boolean isGCRoot()                         { throw new UnsupportedOperationException("Not supported."); } // NOI18N
         @Override public long getInstanceId()                       { throw new UnsupportedOperationException("Not supported."); } // NOI18N
+        @Override public int getInstanceIndex()                     { throw new UnsupportedOperationException("Not supported."); } // NOI18N
         @Override public int getInstanceNumber()                    { throw new UnsupportedOperationException("Not supported."); } // NOI18N
         @Override public JavaClass getJavaClass()                   { throw new UnsupportedOperationException("Not supported."); } // NOI18N
         @Override public Instance getNearestGCRootPointer()         { throw new UnsupportedOperationException("Not supported."); } // NOI18N

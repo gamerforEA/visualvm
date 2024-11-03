@@ -156,6 +156,14 @@ public interface JavaClass {
     long getJavaClassId();
 
     /**
+     * gets unique (in whole heap) index of this {@link JavaClass}.
+     * <br>
+     * Speed: normal
+     * @return index of this {@link JavaClass}
+     */
+    int getJavaClassIndex();
+
+    /**
      * return human readable name of the class.
      * Innerclasses are separated by $. Anonymous classes uses $1 $2 etc.
      * Arrays uses [] after the class or primitive type name

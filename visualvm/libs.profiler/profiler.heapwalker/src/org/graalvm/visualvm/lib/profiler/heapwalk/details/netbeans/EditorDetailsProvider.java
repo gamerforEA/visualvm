@@ -120,6 +120,11 @@ public class EditorDetailsProvider  extends DetailsProvider.Basic {
         }
 
         @Override
+        public int getInstanceIndex() {
+            throw new UnsupportedOperationException("Not supported yet."); // NOI18N
+        }
+
+        @Override
         public int getInstanceNumber() {
             throw new UnsupportedOperationException("Not supported yet."); // NOI18N
         }

@@ -86,6 +86,17 @@ public interface Heap {
     Instance getInstanceByID(long instanceId);
 
     /**
+     * computes {@link Instance} for instanceIndex.
+     * <br>
+     * Speed: fast
+     * @param instanceIndex unique ID of {@link Instance}
+     * @return return <CODE>null</CODE> if there no {@link Instance} with instanceIndex, otherwise
+     * corresponding {@link Instance} is returned so that
+     * <CODE>heap.getInstanceByID(instanceIndex).getInstanceIndex() == instanceIndex</CODE>
+     */
+    Instance getInstanceByIndex(int instanceIndex);
+
+    /**
      * computes {@link JavaClass} for javaclassId.
      * <br>
      * Speed: fast
