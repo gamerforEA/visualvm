@@ -319,12 +319,16 @@ class NearestGCRoot {
                     deepPathBuffer.writeInt(refInstanceIndex);
                     entry.setDeepObj();
                 }
+
+                // TODO Cache instanceIndex
+                int instanceIndex = heap.idToOffsetMap.getInstanceIndexById(instanceId);
+
                 if (addRefInstanceId) {
                     if (!checkReferences(refInstanceId, instanceId)) {
-                        entry.addReference(refInstanceIndex);
+                        entry.addReference(instanceIndex);
                     }
                 }
-                entry.setNearestGCRootPointer(refInstanceIndex);
+                entry.setNearestGCRootPointer(instanceIndex);
                 if (!entry.hasOnlyOneReference()) {
                     multipleParents.writeInt(refInstanceIndex);
 //multiParentsCount++;
