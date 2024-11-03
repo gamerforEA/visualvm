@@ -47,7 +47,7 @@ class DominatorTree {
     private IntBuffer multipleParents;
     private IntBuffer revertedMultipleParents;
     private IntBuffer currentMultipleParents;
-    private IntHashMap map;
+    private IntIntIndexMap map;
     private int dirtySetSameSize;
     private Map<ClassDump,Boolean> canContainItself;
     private Map<Integer,Integer> nearestGCRootCache = new NearestGCRootCache<>(400000);
@@ -58,7 +58,7 @@ class DominatorTree {
         heap = h;
         multipleParents = multiParents;
         currentMultipleParents = multipleParents;
-        map = new IntHashMap(multiParents.getSize());
+        map = new IntIntIndexMap(multiParents.getSize());
         try {
             revertedMultipleParents = multiParents.revertBuffer();
         } catch (IOException ex) {
@@ -354,7 +354,7 @@ class DominatorTree {
 
     DominatorTree(HprofHeap h, DataInputStream dis) throws IOException {
         heap = h;
-        map = new IntHashMap(dis);
+        map = new IntIntIndexMap(dis);
     }
     
     private static final class NearestGCRootCache<K,V> extends LinkedHashMap<K,V> {
