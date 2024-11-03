@@ -72,11 +72,11 @@ class DominatorTree {
         boolean changed = true;
         boolean igonoreDirty;
         try {
-            BitSet dirtySet = new BitSet();
-            BitSet newDirtySet = new BitSet();
+            FastBitSet dirtySet = new FastBitSet();
+            FastBitSet newDirtySet = new FastBitSet();
 
-            BitSet leftIdoms = new BitSet(200);
-            BitSet rightIdoms = new BitSet(200);
+            FastBitSet leftIdoms = new FastBitSet();
+            FastBitSet rightIdoms = new FastBitSet();
 
             IntList additionalIndexes = new IntList();
 
@@ -86,7 +86,7 @@ class DominatorTree {
                 changed = computeOneLevel(igonoreDirty, dirtySet, newDirtySet, leftIdoms, rightIdoms, additionalIndexes);
 
                 // Swap dirty sets
-                BitSet oldDirtySet = dirtySet;
+                FastBitSet oldDirtySet = dirtySet;
                 dirtySet = newDirtySet;
                 oldDirtySet.clear();
                 newDirtySet = oldDirtySet;
@@ -99,7 +99,7 @@ class DominatorTree {
         deleteBuffers();
     }
     
-    private boolean computeOneLevel(boolean ignoreDirty, BitSet dirtySet, BitSet newDirtySet, BitSet leftIdoms, BitSet rightIdoms, IntList additionalIndexes) throws IOException {
+    private boolean computeOneLevel(boolean ignoreDirty, FastBitSet dirtySet, FastBitSet newDirtySet, FastBitSet leftIdoms, FastBitSet rightIdoms, IntList additionalIndexes) throws IOException {
         boolean changed = false;
         additionalIndexes.clear();
         int additionalIndex = 0;
@@ -127,7 +127,7 @@ class DominatorTree {
             }
             int oldIdom = map.get(instanceIndex);
 //index++;
-            if (oldIdom == -1 || (oldIdom > 0 && (ignoreDirty || dirtySet.get(oldIdom) || dirtySet.get(instanceIndex)))) {
+            if (oldIdom == -1 || (oldIdom > 0 && (ignoreDirty || dirtySet.contains(oldIdom) || dirtySet.contains(instanceIndex)))) {
 //processedId++;
                 LongMap.Entry entry = heap.idToOffsetMap.getByIndex(instanceIndex);
                 IntIterator refIt = entry.getReferences();
@@ -141,7 +141,7 @@ class DominatorTree {
                 if (oldIdom == -1) {
 //addedBynewDirtySet.add(newDirtySet.contains(instanceId) && !dirtySet.contains(instanceId));
                     map.put(instanceIndex, newIdomIndex);
-                    if (newIdomIndex != 0) newDirtySet.set(newIdomIndex);
+                    if (newIdomIndex != 0) newDirtySet.add(newIdomIndex);
                     changed = true;
 //changedId++;
 //changedIds.add(instanceId);
@@ -150,8 +150,8 @@ class DominatorTree {
 //newDomIds.add(newIdomIndex);
                 } else if (oldIdom != newIdomIndex) {
 //addedBynewDirtySet.add((newDirtySet.contains(oldIdom) || newDirtySet.contains(instanceId)) && !(dirtySet.contains(oldIdom) || dirtySet.contains(instanceId)));
-                    newDirtySet.set(oldIdom);
-                    if (newIdomIndex != 0) newDirtySet.set(newIdomIndex);
+                    newDirtySet.add(oldIdom);
+                    if (newIdomIndex != 0) newDirtySet.add(newIdomIndex);
                     map.put(instanceIndex,newIdomIndex);
                     if (dirtySet.size() < ADDITIONAL_IDS_THRESHOLD || dirtySetSameSize >= ADDITIONAL_IDS_THRESHOLD_DIRTYSET_SAME_SIZE) {
                         updateAdditionalIds(instanceIndex, additionalIndexes);
@@ -267,7 +267,7 @@ class DominatorTree {
         return getNearestGCRootPointer(instanceIndex);
     }
     
-    private int intersect(int idomIndex, int refIndex, BitSet leftIdoms, BitSet rightIdoms) {
+    private int intersect(int idomIndex, int refIndex, FastBitSet leftIdoms, FastBitSet rightIdoms) {
         if (idomIndex == refIndex) {
             return idomIndex;
         }
@@ -280,26 +280,26 @@ class DominatorTree {
         int rightIdom = refIndex;
 
         
-        leftIdoms.set(leftIdom);
-        rightIdoms.set(rightIdom);
+        leftIdoms.add(leftIdom);
+        rightIdoms.add(rightIdom);
         while(true) {
             if (rightIdom == 0 && leftIdom == 0) return 0;
             if (leftIdom != 0) {
                 leftIdom = getIdomIndex(leftIdom);
                 if (leftIdom != 0) {
-                    if (rightIdoms.get(leftIdom)) {
+                    if (rightIdoms.contains(leftIdom)) {
                         return leftIdom;
                     }
-                    leftIdoms.set(leftIdom);
+                    leftIdoms.add(leftIdom);
                 }
             }
             if (rightIdom != 0) {
                 rightIdom = getIdomIndex(rightIdom);
                 if (rightIdom != 0) {
-                    if (leftIdoms.get(rightIdom)) {
+                    if (leftIdoms.contains(rightIdom)) {
                         return rightIdom;
                     }
-                    rightIdoms.set(rightIdom);
+                    rightIdoms.add(rightIdom);
                 }
             }
         }
@@ -369,5 +369,75 @@ class DominatorTree {
             return size() > maxSize;
         }
 
+    }
+
+    private static final class FastBitSet {
+        private static final int ADDRESS_BITS_PER_WORD = 6;
+
+        private static final int INITIAL_CAPACITY = 2048;
+        private long[] words = new long[INITIAL_CAPACITY];
+        private final IntList wordIndexes = new IntList(INITIAL_CAPACITY / 64);
+        private int size;
+
+        boolean contains(int index) {
+            if (index < 0) {
+                return false;
+            }
+
+            int wordIndex = wordIndex(index);
+            long[] words = this.words;
+            return wordIndex < words.length && (words[wordIndex] & 1L << index) != 0;
+        }
+
+        void add(int index) {
+            if (index < 0) {
+                return;
+            }
+
+            int wordIndex = wordIndex(index);
+            long[] words = this.words;
+
+            if (wordIndex >= words.length) {
+                int requiredLength = Math.max(words.length * 2, wordIndex + 1);
+                words = Arrays.copyOf(words, requiredLength);
+                this.words = words;
+            }
+
+            long mask = 1L << index;
+            long word = words[wordIndex];
+
+            if ((word & mask) == 0L) {
+                words[wordIndex] = word | mask;
+                size++;
+
+                if (word == 0L) {
+                    wordIndexes.add(wordIndex);
+                }
+            }
+        }
+
+        void clear() {
+            if (size == 0) {
+                return;
+            }
+
+            long[] words = this.words;
+            IntList wordIndexes = this.wordIndexes;
+
+            for (int i = 0, size = wordIndexes.size(); i < size; i++) {
+                words[wordIndexes.uncheckedGet(i)] = 0;
+            }
+
+            wordIndexes.clear();
+            size = 0;
+        }
+
+        int size() {
+            return size;
+        }
+
+        private static int wordIndex(int bitIndex) {
+            return bitIndex >> ADDRESS_BITS_PER_WORD;
+        }
     }
 }
