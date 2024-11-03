@@ -34,7 +34,8 @@ import java.util.TreeSet;
 
 /**
  * key - ID (long/int) of heap object
- * value (8/4) + 4 + 1 + (8/4)
+ * value (8/4) + 4 + 4 + 1 + (8/4) + (8/4)
+ *  - index (int)
  *  - offset (long/int) to dump file
  *  - instance index (int) - unique number of this {@link Instance} among all instances of the same Java Class
  *  - references flags (byte) - bit 0 set - has zero or one reference,
@@ -47,7 +48,8 @@ import java.util.TreeSet;
  */
 class LongMap extends AbstractLongMap {
 
-    private NumberList referenceList;
+    private final LongList instanceList;
+    private final NumberList referenceList;
 
     //~ Inner Classes ------------------------------------------------------------------------------------------------------------
 
@@ -60,7 +62,7 @@ class LongMap extends AbstractLongMap {
 
         //~ Instance fields ------------------------------------------------------------------------------------------------------
 
-        private long offset;
+        private final long offset;
 
         //~ Constructors ---------------------------------------------------------------------------------------------------------
 
@@ -68,19 +70,24 @@ class LongMap extends AbstractLongMap {
             offset = off;
         }
 
-        private Entry(long off,long value) {
+        private Entry(long off,int listIndex,long value) {
             offset = off;
-            putFoffset(offset + KEY_SIZE, value);
+            dumpBuffer.putInt(offset + KEY_SIZE, listIndex);
+            putFoffset(offset + KEY_SIZE + 4, value);
         }
 
         //~ Methods --------------------------------------------------------------------------------------------------------------
 
+        int getListIndex() {
+            return dumpBuffer.getInt(offset + KEY_SIZE);
+        }
+
         void setIndex(int index) {
-            dumpBuffer.putInt(offset + KEY_SIZE + FOFFSET_SIZE, index);
+            dumpBuffer.putInt(offset + KEY_SIZE + 4 + FOFFSET_SIZE, index);
         }
 
         int getIndex() {
-            return dumpBuffer.getInt(offset + KEY_SIZE + FOFFSET_SIZE);
+            return dumpBuffer.getInt(offset + KEY_SIZE + 4 + FOFFSET_SIZE);
         }
 
         void setTreeObj() {
@@ -176,38 +183,38 @@ class LongMap extends AbstractLongMap {
         }
         
         long getOffset() {
-            return getFoffset(offset + KEY_SIZE);
+            return getFoffset(offset + KEY_SIZE + 4);
         }
 
         void setRetainedSize(long size) {
             if (FOFFSET_SIZE == 4) {
-                dumpBuffer.putInt(offset + KEY_SIZE + FOFFSET_SIZE + 4 + 1 + ID_SIZE, (int)size);
+                dumpBuffer.putInt(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4 + 1 + ID_SIZE, (int)size);
             } else {
-                dumpBuffer.putLong(offset + KEY_SIZE + FOFFSET_SIZE + 4 + 1 + ID_SIZE, size);
+                dumpBuffer.putLong(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4 + 1 + ID_SIZE, size);
             }
         }
 
         long getRetainedSize() {
             if (FOFFSET_SIZE == 4) {
-                return dumpBuffer.getInt(offset + KEY_SIZE + FOFFSET_SIZE + 4 + 1 + ID_SIZE);
+                return dumpBuffer.getInt(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4 + 1 + ID_SIZE);
             }
-            return dumpBuffer.getLong(offset + KEY_SIZE + FOFFSET_SIZE + 4 + 1 + ID_SIZE);            
+            return dumpBuffer.getLong(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4 + 1 + ID_SIZE);
         }
 
         private void setReferencesPointer(long instanceId) {
-            putID(offset + KEY_SIZE + FOFFSET_SIZE + 4 + 1, instanceId);
+            putID(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4 + 1, instanceId);
         }
 
         private long getReferencesPointer() {
-            return getID(offset + KEY_SIZE + FOFFSET_SIZE + 4 + 1);
+            return getID(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4 + 1);
         }
 
         private void setFlags(byte flags) {
-            dumpBuffer.putByte(offset + KEY_SIZE + FOFFSET_SIZE + 4, flags);
+            dumpBuffer.putByte(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4, flags);
         }
 
         private byte getFlags() {
-            return dumpBuffer.getByte(offset + KEY_SIZE + FOFFSET_SIZE + 4);
+            return dumpBuffer.getByte(offset + KEY_SIZE + 4 + FOFFSET_SIZE + 4);
         }
     }
 
@@ -253,7 +260,9 @@ class LongMap extends AbstractLongMap {
     //~ Constructors -------------------------------------------------------------------------------------------------------------
 
     LongMap(int size,int idSize,int foffsetSize,CacheDirectory cacheDir) throws FileNotFoundException, IOException {
-        super(size,idSize,foffsetSize,foffsetSize + 4 + 1 + idSize + foffsetSize, cacheDir);
+        super(size,idSize,foffsetSize,4 + foffsetSize + 4 + 1 + idSize + foffsetSize, cacheDir);
+        instanceList = new LongList(size + 1);
+        instanceList.add(0); // Instance ID and index can't be zero
         referenceList = cacheDir.createNumberList(ID_SIZE);
     }
 
@@ -263,10 +272,16 @@ class LongMap extends AbstractLongMap {
         return new Entry(index);
     }
     
-    Entry createEntry(long index,long value) {
-        return new Entry(index,value);
+    Entry createEntryOnPut(long key, long index, long value) {
+        int listIndex = instanceList.size();
+        instanceList.add(key);
+        return new Entry(index,listIndex,value);
     }
     
+    Entry getByIndex(int index) {
+        return get(instanceList.get(index));
+    }
+
     Entry get(long key) {
         return (Entry)super.get(key);
     }
@@ -307,11 +322,13 @@ class LongMap extends AbstractLongMap {
     //---- Serialization support    
     void writeToStream(DataOutputStream out) throws IOException {
         super.writeToStream(out);
+        instanceList.writeToStream(out);
         referenceList.writeToStream(out);
     }
     
     LongMap(DataInputStream dis, CacheDirectory cacheDir) throws IOException {
         super(dis, cacheDir);
+        instanceList = new LongList(dis);
         referenceList = new NumberList(dis, cacheDir);
     }
 }

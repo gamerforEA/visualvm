@@ -107,8 +107,7 @@ abstract class AbstractLongMap {
         while (true) {
             long mapKey = getID(index);
             if (mapKey == 0L) {
-                putID(index, key);
-                return createEntry(index,value);
+                return createEntryOnPut(key,index,value);
             } else if (mapKey == key) {
                 return createEntry(index);
             }
@@ -141,7 +140,7 @@ abstract class AbstractLongMap {
         }
         return dumpBuffer.getLong(index);
     }
-    
+
     void putID(long index,long key) {
         if (ID_SIZE == 4) {
             dumpBuffer.putInt(index,(int)key);
@@ -220,7 +219,7 @@ abstract class AbstractLongMap {
 
     abstract Entry createEntry(long index);
     
-    abstract Entry createEntry(long index,long value);
+    abstract Entry createEntryOnPut(long key, long index, long value);
     
     interface Data {
         //~ Methods --------------------------------------------------------------------------------------------------------------
