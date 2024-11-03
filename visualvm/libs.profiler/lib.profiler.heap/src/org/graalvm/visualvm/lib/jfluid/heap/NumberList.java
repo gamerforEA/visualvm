@@ -229,7 +229,8 @@ class NumberList {
 
         if (offset < mappedSize) {
             block = new byte[blockSize];
-            buf.get((int)offset, block);
+            buf.position((int)offset);
+            buf.get(block);
             return block;
         } else {
             Integer indexObj = new Integer(index);
