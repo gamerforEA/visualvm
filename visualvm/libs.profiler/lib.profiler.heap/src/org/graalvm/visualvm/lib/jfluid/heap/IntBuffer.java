@@ -192,7 +192,7 @@ class IntBuffer {
                         }
                     }
 
-                    for (int bufOffset = buf.limit() - Long.BYTES; bufOffset >= 0; bufOffset -= Integer.BYTES) {
+                    for (int bufOffset = buf.limit() - Integer.BYTES; bufOffset >= 0; bufOffset -= Integer.BYTES) {
                         reverted.writeInt(buf.getInt(bufOffset));
                     }
 
