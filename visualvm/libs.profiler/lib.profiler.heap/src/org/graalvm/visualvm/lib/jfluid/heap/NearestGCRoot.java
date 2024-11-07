@@ -41,6 +41,7 @@ class NearestGCRoot {
     //~ Static fields/initializers -----------------------------------------------------------------------------------------------
 
     private static final int BUFFER_SIZE = (64 * 1024) / 8;
+    private static final int MULTI_PARENTS_BUFFER_SIZE = BUFFER_SIZE * 1024;
     private static final String[] REF_CLASSES = {
         "java.lang.ref.WeakReference",    // NOI18N
         "java.lang.ref.SoftReference",    // NOI18N
@@ -253,7 +254,7 @@ class NearestGCRoot {
         readBuffer = new LongBuffer(BUFFER_SIZE, heap.cacheDirectory);
         writeBuffer = new LongBuffer(BUFFER_SIZE, heap.cacheDirectory);
         leaves = new IntBuffer(BUFFER_SIZE, heap.cacheDirectory);
-        multipleParents = new IntBuffer(BUFFER_SIZE, heap.cacheDirectory);
+        multipleParents = new IntBuffer(MULTI_PARENTS_BUFFER_SIZE, heap.cacheDirectory);
         deepPathBuffer = new IntBuffer(BUFFER_SIZE, heap.cacheDirectory);
     }
 
