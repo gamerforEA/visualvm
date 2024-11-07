@@ -192,7 +192,7 @@ class IntBuffer {
 
         if (this.fileChannel != null) {
             this.reverseCopy(this.fileChannel, reverted);
-        } else {
+        } else if (this.backingFile != null) {
             try (FileChannel channel = FileChannel.open(this.backingFile.toPath())) {
                 this.reverseCopy(channel, reverted);
             }
