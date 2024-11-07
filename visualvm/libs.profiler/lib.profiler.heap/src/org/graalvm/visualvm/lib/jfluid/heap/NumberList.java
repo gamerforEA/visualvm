@@ -167,7 +167,7 @@ class NumberList {
     private void mmapData() {
         if (buf == null) {
             try {
-                mappedSize = Math.min(blockSize*blocks, Integer.MAX_VALUE-blockSize+1);
+                mappedSize = Math.min((long) blockSize*blocks, Integer.MAX_VALUE-blockSize+1);
                 buf = data.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, mappedSize);
             } catch (IOException ex) {
                 // map() failed
